@@ -1,0 +1,41 @@
+---
+
+# Backup settings
+postgres_keep_days: 7
+
+# Where the rsync SSH private key will live on the postgres host
+backup_rsync_private_key_path: "/root/.ssh/backup_rsync"
+
+postgres_backup_dir: /var/backups/postgres
+backup_server_host: "127.0.0.1"
+backup_server_port: 2223
+backup_server_user: "backupuser"
+
+backup_user_name: backup_user
+backup_user_password: "{{ vault_backup_user_password }}"
+
+backup_store_dir: "/backups/postgres"
+backup_store_user: "backupuser"
+backup_server_remote_dir: "/backups/postgres"
+
+tenants:
+  - name: tenant1
+    db: tenant1
+    user: tenant1_user
+    password: "{{ vault_tenant1_password }}"
+  - name: tenant2
+    db: tenant2
+    user: tenant2_user
+    password: "{{ vault_tenant2_password }}"
+  - name: tenant3
+    db: tenant3
+    user: tenant3_user
+    password: "{{ vault_tenant3_password }}"
+  - name: tenant4
+    db: tenant4
+    user: tenant4_user
+    password: "{{ vault_tenant4_password }}"
+  - name: tenant5
+    db: tenant5
+    user: tenant5_user
+    password: "{{ vault_tenant5_password }}"

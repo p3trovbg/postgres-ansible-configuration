@@ -1,0 +1,16 @@
+# 1) DB server(s): common stuff + DB stuff
+- name: Common + DB stuff on db servers
+  hosts: db_servers
+  vars_files:
+    - './vault.yml'
+  become: yes
+  become_user: root
+  become_method: sudo
+
+  roles:
+    - utilities
+    - ufw
+    - zsh
+    - docker
+    - postgres_stack
+    - postgres_backup

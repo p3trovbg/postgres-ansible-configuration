@@ -1,0 +1,54 @@
+# --- Ansible specific ---
+
+# Retry files (created when a play fails)
+*.retry
+
+# Local facts cache (if you use fact caching to file)
+.fact_cache/
+.fact_cache*
+
+# Ansible custom log file (if you configure one)
+ansible.log
+
+# If you generate dynamic inventory cache locally
+.inventory_cache/
+.cache/
+
+# --- Python / virtualenv (if you use them) ---
+venv/
+.env/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Editor / OS junk ---
+# VS Code
+.vscode/
+# PyCharm / IntelliJ
+.idea/
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+
+# --- Temporary stuff ---
+*.swp
+*.swo
+*.tmp
+*.log
+
+# --- Collections / roles installed from requirements (optional) ---
+# If you install these with `ansible-galaxy install -r requirements.yml`
+# and don't want to commit the downloads:
+roles/
+collections/
+
+# BUT keep:
+# requirements.yml
+# collections/requirements.yml
+
+vault.yml
+vault-password.yml
+

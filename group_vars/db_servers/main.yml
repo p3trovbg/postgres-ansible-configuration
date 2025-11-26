@@ -1,0 +1,19 @@
+---
+
+server_name: postgres-server
+ansible_user: ansible
+postgres_restore_work_dir: /var/tmp/postgres-restore
+postgres_stack_root: /opt/postgres-stack
+postgres_backup_script_dir: /usr/local/bin
+
+postgres_image: "postgres:18"
+pgadmin_image: "dpage/pgadmin4:latest"
+
+postgres_user: "postgres"
+postgres_password: "{{ vault_postgres_password }}"
+postgres_db: "main_db"
+
+pgadmin_default_email: "admin@example.com"
+pgadmin_default_password: "{{ vault_pgadmin_password }}"
+
+postgres_container_name: "postgres-db-ubuntu"

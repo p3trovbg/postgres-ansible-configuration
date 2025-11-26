@@ -1,0 +1,13 @@
+# 2) Backup server(s): common stuff + backup stuff
+- name: Common + backup stuff on backup servers
+  hosts: backup_servers
+  vars_files:
+    - './vault.yml'
+  become: yes
+  become_user: root
+  become_method: sudo
+
+  roles:
+    - utilities
+    - zsh
+    - postgres_backup
