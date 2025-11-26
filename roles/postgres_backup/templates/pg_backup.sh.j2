@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# -e : exit immediately if a command exits with a non-zero status
+# -u : treat unset variables as an error
+# -o pipefail : the return value of a pipeline is the status of
+#               the last command to exit with a non-zero status
+
+# Use a predictable PATH so cron/systemd doesn’t surprise us
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+
+###############################################################################
+# CONFIGURATION (templated via Ansible / Jinja)
+#
+# These variables are filled in by your configuration management tool.
+# They control:
+#   - where local backups are stored
+#   - how many days of local backups to keep
+#   - how to reach the remote backup server
+#   - which Postgres container and databases to back up
+###############################################################################
+
+BACKUP_DIR="{{ postgres_backup_dir }}"              # Local backup root dir, e.g. /var/backups/postgres
+KEEP_DAYS="{{ postgres_keep_days }}"                # How many days of local backups to keep, e.g. 7
+
+# Current timestamp used to create a unique directory per backup run
+DATE="$(date +%Y-%m-%d_%H-%M-%S)"
+
+# Full path for this specific backup run
+# Example: /var/backups/postgres/2025-11-24_12-00-00
+RUN_DIR="${BACKUP_DIR}/${DATE}"
+
+# SSH key used for rsync to remote backup server
+SSH_KEY="{{ backup_rsync_private_key_path }}"       # e.g. /root/.ssh/backup_rsync
+
+# Remote backup server credentials and location
+REMOTE_USER="{{ backup_server_user }}"              # e.g. backupuser
+REMOTE_HOST="{{ backup_server_host }}"              # e.g. 127.0.0.1 or backup.example.com
+REMOTE_PORT="{{ backup_server_port }}"              # e.g. 22
+REMOTE_DIR="{{ backup_server_remote_dir }}"         # e.g. /backups/postgres
+
+# Postgres connection details (inside Docker)
+POSTGRES_USER="{{ postgres_user }}"                 # e.g. postgres
+POSTGRES_CONTAINER="{{ postgres_container_name }}"  # e.g. postgres-db-ubuntu
+
+# Symmetric GPG encryption passphrase for all backup files
+ENCRYPT_PASSPHRASE="{{ backup_encryption_passphrase }}"
+
+# Databases to dump: main_db + all tenant DBs
+# This array is rendered by Ansible/Jinja based on your tenant list
+DATABASES=(
+  "{{ postgres_db }}"                               # main_db
+  {% for tenant in tenants %}
+  "{{ tenant.db }}"                                 # {{ tenant.name }}
+  {% endfor %}
+)
+
+
+###############################################################################
+# INITIAL SETUP
+###############################################################################
+
+# Ensure the directory for this backup run exists
+mkdir -p "$RUN_DIR"
+
+echo "[$(date)] Starting backup run in $RUN_DIR"
+
+###############################################################################
+# HELPER: encrypt_file
+#
+# Takes a plaintext file:
+#   1. Encrypts it with GPG (AES-256, symmetric) into <file>.gpg
+#   2. Securely deletes the original plaintext file using shred
+#
+# Arguments:
+#   $1 - path to the plaintext file (e.g. /var/backups/.../main_db.dump)
+###############################################################################
+encrypt_file() {
+  local raw_file="$1"
+  local enc_file="${raw_file}.gpg"
+
+  echo "[$(date)] Encrypting ${raw_file} -> ${enc_file}"
+
+  # Use non-interactive symmetric encryption with a passphrase provided via stdin.
+  # The passphrase itself comes from ENCRYPT_PASSPHRASE (templated by Ansible).
+  printf '%s' "$ENCRYPT_PASSPHRASE" | gpg \
+    --batch --yes \
+    --passphrase-fd 0 \
+    --symmetric \
+    --cipher-algo AES256 \
+    "$raw_file"
+
+  # Securely delete plaintext (best-effort; depends on filesystem)
+  shred -u "$raw_file"
+}
+
+###############################################################################
+# STEP 1: Dump ONLY Postgres global objects (roles, privileges, etc.)
+#
+# We run pg_dump with --globals-only inside the Postgres container.
+# This captures:
+#   - roles
+#   - role memberships
+#   - tablespaces
+#   - some global settings
+#
+# No actual database data is included here.
+###############################################################################
+
+echo "[$(date)] Dumping global objects (roles)..."
+GLOBALS_RAW="${RUN_DIR}/globals.sql"
+
+# Run pg_dumpall inside the Postgres container using docker exec.
+# PGPASSWORD is passed as an environment variable for authentication.
+docker exec \
+  -e PGPASSWORD="{{ postgres_password }}" \
+  "$POSTGRES_CONTAINER" \
+  pg_dumpall  -U "$POSTGRES_USER" --globals-only > "$GLOBALS_RAW"
+
+# Encrypt and remove plaintext globals.sql
+encrypt_file "$GLOBALS_RAW"
+
+###############################################################################
+# STEP 2: Dump each individual database and encrypt
+#
+# For each database listed in DATABASES:
+#   - Run pg_dump inside the container
+#   - Write a plain dump file into RUN_DIR
+#   - Encrypt it with GPG and remove the plaintext
+###############################################################################
+
+for DB in "${DATABASES[@]}"; do
+  echo "[$(date)] Dumping database: $DB"
+  RAW_FILE="${RUN_DIR}/${DB}.dump"
+
+  docker exec \
+    -e PGPASSWORD="{{ postgres_password }}" \
+    "$POSTGRES_CONTAINER" \
+    pg_dump -Fc -U "$POSTGRES_USER" -d "$DB" > "$RAW_FILE"
+
+  encrypt_file "$RAW_FILE"
+done
+
+###############################################################################
+# STEP 3: Clean up old local backups
+#
+# Remove local backup directories in BACKUP_DIR that are:
+#   - older than KEEP_DAYS days
+#   - directory name starting with "20" (e.g. "2025-11-24_...")
+#
+# This keeps local disk usage under control while leaving more backups on
+# the remote storage server (which should have its own retention policy).
+###############################################################################
+
+echo "[$(date)] Cleaning up local backups older than ${KEEP_DAYS} days..."
+find "$BACKUP_DIR" \
+  -maxdepth 1 \
+  -type d \
+  -mtime +"$KEEP_DAYS" \
+  -name "20*" \
+  -exec rm -rf {} +
+
+###############################################################################
+# STEP 4: Ensure remote directory exists on backup server
+#
+# We:
+#   - Connect over SSH (any port) to the remote backup server
+#   - Create a directory corresponding to this backup run:
+#       REMOTE_DIR/DATE
+#     e.g. /backups/postgres/2025-11-24_12-00-00
+###############################################################################
+
+REMOTE_RUN_DIR="${REMOTE_DIR}/${DATE}"
+echo "[$(date)] Ensuring remote directory ${REMOTE_RUN_DIR} exists..."
+ssh -i "${SSH_KEY}" -p ${REMOTE_PORT} -o StrictHostKeyChecking=no \
+  "${REMOTE_USER}@${REMOTE_HOST}" "mkdir -p '${REMOTE_RUN_DIR}'"
+
+###############################################################################
+# STEP 5: Sync encrypted backup files to remote server via rsync
+#
+# At this point, RUN_DIR contains only:
+#   - globals.sql.gpg
+#   - <db>.dump.gpg for each database
+#
+# We:
+#   - Use rsync over SSH (any port) to push the contents of RUN_DIR
+#     to the remote directory REMOTE_RUN_DIR
+###############################################################################
+
+echo "[$(date)] Syncing backup to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_RUN_DIR}"
+rsync -az -e "ssh -i ${SSH_KEY} -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
+  "${RUN_DIR}/" \
+  "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_RUN_DIR}/"
+
+echo "[$(date)] Backup run completed."

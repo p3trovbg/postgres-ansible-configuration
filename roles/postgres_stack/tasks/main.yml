@@ -1,0 +1,38 @@
+---
+
+- name: Ensure stack root directory exists
+  file:
+    path: "{{ postgres_stack_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create initdb directory
+  file:
+    path: "{{ postgres_stack_root }}/initdb"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy initial SQL template
+  template:
+    src: init.sql.j2
+    dest: "{{ postgres_stack_root }}/initdb/init.sql"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Deploy docker-compose.yml for Postgres + pgAdmin
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ postgres_stack_root }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Bring up Postgres stack with docker compose
+  command: docker compose up -d
+  args:
+    chdir: "{{ postgres_stack_root }}"

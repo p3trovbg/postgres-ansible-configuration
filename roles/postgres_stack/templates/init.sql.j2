@@ -1,0 +1,43 @@
+-- ============================================================
+-- 1) Dedicated backup user (cluster-wide, read-only)
+-- ============================================================
+
+CREATE ROLE {{ backup_user_name }}
+    WITH LOGIN
+    PASSWORD '{{ backup_user_password }}'
+    NOSUPERUSER
+    NOCREATEDB
+    NOCREATEROLE
+    NOREPLICATION;
+
+DO $$
+BEGIN
+  IF current_setting('server_version_num')::int >= 140000 THEN
+    EXECUTE 'GRANT pg_read_all_data TO {{ backup_user_name }}';
+    EXECUTE 'GRANT pg_read_all_stats TO {{ backup_user_name }}';
+  END IF;
+END
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- 2) Lock down default databases a bit
+-- ============================================================
+
+REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;
+REVOKE CONNECT ON DATABASE template1 FROM PUBLIC;
+
+-- ============================================================
+-- 3) Tenants (DB + login per tenant)
+-- ============================================================
+
+{% for tenant in tenants %}
+-- {{ tenant.name | upper }}
+
+CREATE ROLE {{ tenant.user }} WITH LOGIN PASSWORD '{{ tenant.password }}';
+CREATE DATABASE {{ tenant.db }} OWNER {{ tenant.user }};
+
+REVOKE CONNECT ON DATABASE {{ tenant.db }} FROM PUBLIC;
+GRANT CONNECT ON DATABASE {{ tenant.db }} TO {{ tenant.user }};
+GRANT CONNECT ON DATABASE {{ tenant.db }} TO {{ backup_user_name }};
+
+{% endfor %}

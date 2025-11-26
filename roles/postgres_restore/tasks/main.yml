@@ -1,0 +1,11 @@
+---
+
+# roles/postgres_restore/tasks/main.yml
+- name: Install Postgres restore script
+  template:
+    src: postgres_restore.sh.j2
+    dest: /usr/local/bin/postgres-restore.sh
+    owner: root
+    group: root
+    mode: '0750'
+

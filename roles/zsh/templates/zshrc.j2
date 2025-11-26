@@ -1,0 +1,32 @@
+source /home/{{ ansible_user }}/.antigen/antigen.zsh
+
+
+DISABLE_AUTO_TITLE="true"
+
+antigen use oh-my-zsh
+
+antigen bundle git
+antigen bundle pip
+antigen bundle lein
+antigen bundle command-not-found
+antigen bundle zsh-users/zsh-syntax-highlighting
+
+antigen theme robbyrussell
+
+alias backups='cd "{{ postgres_backup_dir }}"'
+alias postgres-stack='cd "{{ postgres_stack_root }}"'
+alias restore-script-dir='cd "{{ postgres_backup_script_dir }}"'
+
+antigen apply
+
+# ---- custom tab title ----
+set_tab_title() {
+  # Build the title: <server_name>@<user>: <cwd with ~>
+  local title="{{ server_name }}@{{ ansible_user }}: ${PWD/#$HOME/~}"
+  # OSC sequence: ESC ] 0 ; <title> BEL
+  echo -ne "\033]0;${title}\007"
+}
+
+autoload -U add-zsh-hook
+add-zsh-hook precmd set_tab_title
+# --------------------------

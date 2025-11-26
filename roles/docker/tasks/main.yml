@@ -1,0 +1,3 @@
+- name: Install the correct docker for Debian
+  import_tasks: docker-on-ubuntu.yml
+  when: ansible_facts['os_family']|lower == 'debian'

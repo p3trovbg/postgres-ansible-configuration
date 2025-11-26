@@ -1,0 +1,29 @@
+---
+
+- name: Ensure required packages are installed
+  apt:
+    name:
+      - ufw
+    state: present
+    update_cache: yes
+
+- name: Enable UFW
+  ufw:
+    state: enabled
+    
+- name: Allow SSH (TCP only)
+  ufw:
+    rule: allow
+    port: 22
+    proto: tcp
+
+- name: Allow SSH on custom port {{ ansible_port }}
+  ufw:
+    rule: allow
+    port: "{{ ansible_port }}"
+    proto: tcp
+
+    
+- name: Reload UFW to apply changes
+  command: ufw reload
+  when: ansible_distribution == 'Ubuntu'

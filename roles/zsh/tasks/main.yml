@@ -1,0 +1,28 @@
+--- 
+
+- name: Create .antigen directory
+  file:
+    path: "/home/{{ ansible_user }}/.antigen"
+    state: directory
+    mode: '0777'
+
+- name: Setup Antigen ZSH
+  get_url:
+    url: http://git.io/antigen
+    dest: "/home/{{ ansible_user }}/.antigen/antigen.zsh"
+    mode: '0777'
+
+- name: Install zsh
+  package:
+    name: zsh
+    state: present
+
+- name: Setup ZSH with Antigen
+  template:
+    src: zshrc.j2
+    dest: "/home/{{ ansible_user }}/.zshrc"
+    mode: '0777'
+
+- user:
+    name: "{{ ansible_user }}"
+    shell: /usr/bin/zsh

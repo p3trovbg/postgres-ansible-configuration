@@ -1,0 +1,67 @@
+---
+
+- name: Update apt cache
+  apt: update_cache=yes cache_valid_time=3600
+
+- name: Upgrade all apt packages
+  apt: upgrade=dist
+
+- name: Install dependencies
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+  vars:
+    packages:
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - software-properties-common
+    - gnupg-agent
+    - python3-pip
+    - virtualenv
+    - python3-setuptools
+  
+- name: Add an apt signing key for Docker
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add apt repository for stable version
+  apt_repository:
+    repo: deb https://download.docker.com/linux/ubuntu jammy stable
+    state: present
+
+- name: Install Docker
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+  vars:
+    packages:
+    - docker-ce
+    - docker-ce-cli
+    - containerd.io
+
+- name: Enable the Docker daemon in systemd
+  systemd:
+    name: docker
+    enabled: yes
+    masked: no
+
+- name: Start the Docker daemon
+  systemd:
+    name: docker
+    state: started
+    masked: no
+
+- name: Add user to docker group
+  user:
+    name: "{{ansible_user}}"
+    groups: docker
+    append: true
+
+- name: Change permissions to /var/run/docker.sock
+  file:
+    path: /var/run/docker.sock
+    mode: 666

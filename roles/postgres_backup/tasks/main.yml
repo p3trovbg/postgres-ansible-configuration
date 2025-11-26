@@ -1,0 +1,63 @@
+---
+
+- name: Ensure local backup directory exists (on DB server)
+  file:
+    path: "{{ postgres_backup_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0750'
+  when: "'db_servers' in group_names"
+
+- name: Ensure rsync is installed on postgres host (DB server)
+  apt:
+    name: rsync
+    state: present
+    update_cache: yes
+  when: "'db_servers' in group_names"
+
+- name: Deploy rsync private key for backups (DB server)
+  copy:
+    src: "~/.ssh/backup_rsync"
+    dest: "{{ backup_rsync_private_key_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+  when: "'db_servers' in group_names"
+
+- name: Deploy Postgres backup script (DB server)
+  template:
+    src: pg_backup.sh.j2
+    dest: "{{postgres_backup_script_dir}}/pg_backup.sh"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0750'
+  when: "'db_servers' in group_names"
+
+- name: Setup nightly Postgres backup cron (DB server)
+  cron:
+    name: "Postgres Docker backup"
+    user: root
+    minute: "0"
+    hour: "2"
+    job: "{{ postgres_backup_script_dir }}/pg_backup.sh >> /var/log/pg_backup.log 2>&1"
+  when: "'db_servers' in group_names"
+
+- name: Ensure gpg is installed on DB server
+  apt:
+    name: gnupg
+    state: present
+    update_cache: yes
+  when: "'db_servers' in group_names"
+  
+# === BACKUP SERVER SIDE ===
+
+- name: Ensure remote backup directory exists (backup server)
+  file:
+    path: "{{ backup_server_remote_dir }}"
+    state: directory
+    owner: "{{ backup_server_user }}"
+    group: "{{ backup_server_user }}"
+    mode: '0750'
+  when: "'backup_servers' in group_names"
+  
