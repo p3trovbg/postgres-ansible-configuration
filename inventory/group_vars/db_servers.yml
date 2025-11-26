@@ -17,3 +17,4 @@ pgadmin_default_email: "admin@example.com"
 pgadmin_default_password: "{{ vault_pgadmin_password }}"
 
 postgres_container_name: "postgres-db-ubuntu"
+postgres_keep_days: 7

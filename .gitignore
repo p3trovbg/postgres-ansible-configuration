@@ -42,13 +42,11 @@ Thumbs.db
 # --- Collections / roles installed from requirements (optional) ---
 # If you install these with `ansible-galaxy install -r requirements.yml`
 # and don't want to commit the downloads:
-roles/
 collections/
 
 # BUT keep:
 # requirements.yml
 # collections/requirements.yml
 
-vault.yml
-vault-password.yml
+vault-password-file
 
