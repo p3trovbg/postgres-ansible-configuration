@@ -8,7 +8,7 @@
 
 - name: Setup Antigen ZSH
   get_url:
-    url: http://git.io/antigen
+    url: https://git.io/antigen
     dest: "/home/{{ ansible_user }}/.antigen/antigen.zsh"
     mode: '0777'
 

@@ -1,0 +1,83 @@
+---
+
+- name: Restore Postgres database from backup
+  hosts: db_servers
+  become: yes
+  vars_files:
+    - ../dev-vault.yml
+  vars_prompt:
+    - name: backup_date
+      prompt: "Enter backup date (YYYY-MM-DD_HH-MM-SS)"
+      private: no
+    - name: database_name
+      prompt: "Enter database name to restore"
+      private: no
+    - name: confirm_restore
+      prompt: "This will DROP the database. Type 'yes' to confirm"
+      private: no
+
+  tasks:
+    - name: Verify confirmation
+      fail:
+        msg: "Restore cancelled - confirmation not received"
+      when: confirm_restore != 'yes'
+
+    - name: Check if backup exists locally
+      stat:
+        path: "{{ postgres_backup_dir }}/{{ backup_date }}"
+      register: backup_exists
+
+    - name: Fetch backup from remote if not local
+      command: >
+        rsync -az --partial
+        -e "ssh -i {{ backup_rsync_private_key_path }} -p {{ backup_server_port }} -o StrictHostKeyChecking=no"
+        {{ backup_server_user }}@{{ backup_server_host }}:{{ backup_server_remote_dir }}/{{ backup_date }}/
+        {{ postgres_backup_dir }}/{{ backup_date }}/
+      when: not backup_exists.stat.exists
+
+    - name: Decrypt database dump
+      shell: |
+        printf '%s' "{{ backup_encryption_passphrase }}" | gpg \
+          --batch --yes --passphrase-fd 0 --decrypt \
+          "{{ postgres_backup_dir }}/{{ backup_date }}/{{ database_name }}.dump.gpg" \
+          > /tmp/{{ database_name }}.dump
+      no_log: true
+
+    - name: Ensure postgres container is running
+      community.docker.docker_container:
+        name: "{{ postgres_container_name }}"
+        state: started
+
+    - name: Terminate connections to target database
+      shell: >
+        docker exec -e PGPASSWORD="{{ postgres_password }}"
+        {{ postgres_container_name }}
+        psql -U {{ postgres_user }} -d postgres -c
+        "SELECT pg_terminate_backend(pid)
+         FROM pg_stat_activity
+         WHERE datname = '{{ database_name }}'
+           AND pid <> pg_backend_pid();"
+
+    - name: Drop existing database
+      shell: >
+        docker exec -e PGPASSWORD="{{ postgres_password }}"
+        {{ postgres_container_name }}
+        psql -U {{ postgres_user }} -c "DROP DATABASE IF EXISTS {{ database_name }};"
+
+    - name: Create database
+      shell: >
+        docker exec -e PGPASSWORD="{{ postgres_password }}"
+        {{ postgres_container_name }}
+        psql -U {{ postgres_user }} -c "CREATE DATABASE {{ database_name }};"
+
+    - name: Restore database
+      shell: >
+        docker exec -i -e PGPASSWORD="{{ postgres_password }}"
+        {{ postgres_container_name }}
+        pg_restore -U {{ postgres_user }} -d {{ database_name }} --verbose --no-owner --no-acl
+        < /tmp/{{ database_name }}.dump
+
+    - name: Cleanup decrypted dump
+      file:
+        path: /tmp/{{ database_name }}.dump
+        state: absent

@@ -21,7 +21,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ###############################################################################
 
 BACKUP_DIR="{{ postgres_backup_dir }}"              # Local backup root dir, e.g. /var/backups/postgres
-KEEP_DAYS="{{ postgres_keep_days }}"                # How many days of local backups to keep, e.g. 7
+KEEP_DAYS="{{ local_backup_keep_days }}"                # How many days of local backups to keep, e.g. 7
 
 # Current timestamp used to create a unique directory per backup run
 DATE="$(date +%Y-%m-%d_%H-%M-%S)"
@@ -188,7 +188,7 @@ ssh -i "${SSH_KEY}" -p ${REMOTE_PORT} -o StrictHostKeyChecking=no \
 ###############################################################################
 
 echo "[$(date)] Syncing backup to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_RUN_DIR}"
-rsync -az -e "ssh -i ${SSH_KEY} -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
+rsync -a --partial --timeout=300 -e "ssh -i ${SSH_KEY} -p ${REMOTE_PORT} -o StrictHostKeyChecking=no" \
   "${RUN_DIR}/" \
   "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_RUN_DIR}/"
 

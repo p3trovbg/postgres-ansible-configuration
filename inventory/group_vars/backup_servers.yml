@@ -1,4 +1,4 @@
 ---
 
-ansible_user: backupuser
 server_name: backup-server
+ansible_user: backupuser

@@ -5,14 +5,17 @@ postgres_stack_root: /opt/postgres-stack
 postgres_backup_script_dir: /usr/local/bin
 
 # Where the rsync SSH private key will live on the postgres host
-backup_rsync_private_key_path: "/root/.ssh/backup_rsync"
+backup_rsync_private_key_path: "/root/.ssh/id_rsa_postgres_backup"
+
+postgres_server_host: "127.0.0.1"
+postgres_server_port: 22
 
 backup_server_host: "127.0.0.1"
-backup_server_port: 2223
+backup_server_port: 22
 backup_server_user: "backupuser"
 
-backup_user_name: backup_user
-backup_user_password: "{{ vault_backup_user_password }}"
+db_backup_user_name: backup_user
+db_backup_user_password: "{{ vault_db_backup_user_password }}"
 
 backup_store_dir: "/backups/postgres"
 backup_store_user: "backupuser"

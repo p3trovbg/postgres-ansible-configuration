@@ -1,37 +1,54 @@
 ---
 
-- name: Ensure local backup directory exists (on DB server)
-  file:
-    path: "{{ postgres_backup_dir }}"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-    mode: '0750'
-  when: "'db_servers' in group_names"
-
-- name: Ensure rsync is installed on postgres host (DB server)
+- name: Install required packages (DB server)
   apt:
-    name: rsync
+    name:
+      - rsync
+      - gnupg
     state: present
     update_cache: yes
   when: "'db_servers' in group_names"
 
-- name: Deploy rsync private key for backups (DB server)
-  copy:
-    src: "~/.ssh/backup_rsync"
-    dest: "{{ backup_rsync_private_key_path }}"
+- name: Generate SSH key for Root (DB server)
+  user:
+    name: root
+    generate_ssh_key: yes
+    ssh_key_bits: 4096
+    ssh_key_type: rsa
+    # We use a specific file to not overwrite existing default keys
+    ssh_key_file: "{{ backup_rsync_private_key_path }}"
+    ssh_key_comment: "root@{{ inventory_hostname }}-postgres-backup"
+  register: db_server_ssh_key
+  when: "'db_servers' in group_names"
+
+- name: Fetch the Public Key (DB server)
+  slurp:
+    src: "{{ db_server_ssh_key.ssh_key_file }}.pub"
+  register: db_pub_key_slurped
+  when: "'db_servers' in group_names"
+
+- name: Store Public Key as a Fact
+  set_fact:
+    # Decode the base64 content so other servers can read it
+    db_backup_public_key: "{{ db_pub_key_slurped.content | b64decode }}"
+  when: "'db_servers' in group_names"
+
+- name: Ensure local backup directory exists (DB server)
+  file:
+    path: "{{ postgres_backup_dir }}"
+    state: directory
     owner: root
     group: root
-    mode: '0600'
+    mode: '0700'
   when: "'db_servers' in group_names"
 
 - name: Deploy Postgres backup script (DB server)
   template:
     src: pg_backup.sh.j2
-    dest: "{{postgres_backup_script_dir}}/pg_backup.sh"
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-    mode: '0750'
+    dest: "{{ postgres_backup_script_dir }}/pg_backup.sh"
+    owner: "root"
+    group: "root"
+    mode: '0700'
   when: "'db_servers' in group_names"
 
 - name: Setup nightly Postgres backup cron (DB server)
@@ -41,13 +58,6 @@
     minute: "0"
     hour: "2"
     job: "{{ postgres_backup_script_dir }}/pg_backup.sh >> /var/log/pg_backup.log 2>&1"
-  when: "'db_servers' in group_names"
-
-- name: Ensure gpg is installed on DB server
-  apt:
-    name: gnupg
-    state: present
-    update_cache: yes
   when: "'db_servers' in group_names"
   
 # === BACKUP SERVER SIDE ===
@@ -60,4 +70,17 @@
     group: "{{ backup_server_user }}"
     mode: '0750'
   when: "'backup_servers' in group_names"
+
+- name: Authorize DB Server SSH Key (Backup server)
+  authorized_key:
+    user: "{{ backup_server_user }}"
+    state: present
+    # Loop through all DB servers to add their keys
+    key: "{{ hostvars[item]['db_backup_public_key'] }}"
+    comment: "Access from {{ item }} (Postgres Backup)"
+  # This magic loop looks at the 'db_servers' group and pulls the variable we set in Part 1
+  loop: "{{ groups['db_servers'] }}"
+  when: 
+    - "'backup_servers' in group_names"
+    - "hostvars[item]['db_backup_public_key'] is defined"
   
