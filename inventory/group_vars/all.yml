@@ -7,11 +7,8 @@ postgres_backup_script_dir: /usr/local/bin
 # Where the rsync SSH private key will live on the postgres host
 backup_rsync_private_key_path: "/root/.ssh/id_rsa_postgres_backup"
 
-postgres_server_host: "127.0.0.1"
-postgres_server_port: 22
-
 backup_server_host: "127.0.0.1"
-backup_server_port: 22
+backup_server_port: 2223
 backup_server_user: "backupuser"
 
 db_backup_user_name: backup_user

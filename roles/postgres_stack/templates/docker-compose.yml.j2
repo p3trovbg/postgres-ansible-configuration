@@ -1,14 +1,14 @@
 services:
   db:
-    image: {{ postgres_image }}
-    container_name: {{ postgres_container_name }}
+    image: "{{ postgres_image }}"
+    container_name: "{{ postgres_container_name }}"
     restart: always
     environment:
       POSTGRES_USER: "{{ postgres_user }}"
       POSTGRES_PASSWORD: "{{ postgres_password }}"
       POSTGRES_DB: "{{ postgres_db }}"
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql
       - ./initdb:/docker-entrypoint-initdb.d
@@ -16,8 +16,8 @@ services:
       - backend_net
       
   pgadmin:
-    image: {{ pgadmin_image }}
-    container_name: pgadmin-ubuntu
+    image: "{{ pgadmin_image }}"
+    container_name: "{{ pgadmin_container_name }}"
     restart: always
     depends_on:
       - db

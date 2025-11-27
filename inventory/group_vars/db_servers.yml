@@ -7,7 +7,7 @@ postgres_image: "postgres:18"
 postgres_container_name: "db"
 
 pgadmin_image: "dpage/pgadmin4:latest"
-pgadmin_container_name: "pgadmin-container"
+pgadmin_container_name: "pgadmin"
 
 pgadmin_default_email: "admin@example.com"
 pgadmin_default_password: "{{ vault_pgadmin_password }}"

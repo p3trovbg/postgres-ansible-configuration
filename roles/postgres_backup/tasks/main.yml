@@ -14,7 +14,7 @@
     name: root
     generate_ssh_key: yes
     ssh_key_bits: 4096
-    ssh_key_type: rsa
+    ssh_key_type: ed25519
     # We use a specific file to not overwrite existing default keys
     ssh_key_file: "{{ backup_rsync_private_key_path }}"
     ssh_key_comment: "root@{{ inventory_hostname }}-postgres-backup"

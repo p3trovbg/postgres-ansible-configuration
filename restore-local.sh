@@ -5,10 +5,11 @@ set -euo pipefail
 # Requires: SSH access to backup server, local Postgres instance
 
 BACKUP_SERVER_USER="backupuser"
-BACKUP_SERVER_HOST="0.0.0.0" # point remote storage server
-BACKUP_SERVER_PORT="22"
-SSH_KEY="~/.ssh/backup_rsync_debug"  # Developers need this key
+BACKUP_SERVER_HOST="127.0.0.1" # point remote storage server
+BACKUP_SERVER_PORT="2223"
+SSH_KEY="~/.ssh/backup_server_key" 
 REMOTE_DIR="/backups/postgres"
+LOCAL_BACKUP_DIR="../postgres_backups" # point location when you want save backup on your machine
 
 # Prompt for backup date and database
 echo "Available backups on server:"
@@ -21,7 +22,6 @@ read -p "Enter database name: " DATABASE
 read -sp "Enter decryption passphrase: " PASSPHRASE
 echo
 
-LOCAL_BACKUP_DIR="./postgres_backups"
 mkdir -p "$LOCAL_BACKUP_DIR"
 
 # Download encrypted backup
@@ -42,12 +42,12 @@ printf '%s' "$PASSPHRASE" | gpg \
 echo "Restoring to local database..."
 LOCAL_DB_NAME="${DATABASE}_local"
 
-# Assuming local Postgres (not Docker, adjust if needed)
-dropdb --if-exists "$LOCAL_DB_NAME"
-createdb "$LOCAL_DB_NAME"
-pg_restore -d "$LOCAL_DB_NAME" --no-owner --no-acl "${LOCAL_BACKUP_DIR}/${DATABASE}.dump"
+# # Assuming local Postgres (not Docker, adjust if needed)
+# dropdb --if-exists "$LOCAL_DB_NAME"
+# createdb "$LOCAL_DB_NAME"
+# pg_restore -d "$LOCAL_DB_NAME" --no-owner --no-acl "${LOCAL_BACKUP_DIR}/${DATABASE}.dump"
 
-# Cleanup
-rm -f "${LOCAL_BACKUP_DIR}/${DATABASE}.dump"
+# # Cleanup
+# rm -f "${LOCAL_BACKUP_DIR}/${DATABASE}.dump"
 
 echo "Database restored to: $LOCAL_DB_NAME"
