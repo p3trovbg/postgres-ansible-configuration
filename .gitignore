@@ -49,4 +49,5 @@ collections/
 # collections/requirements.yml
 
 vault-password-file
+vault_password_file
 
